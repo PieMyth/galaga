@@ -11,6 +11,7 @@ use piston::input::*;
 use glutin_window::GlutinWindow;
 use opengl_graphics::{GlGraphics, OpenGL};
 
+
 static WIDTH:i64= 400;
 static HEIGHT:i64 = 600;
 static GRIDSIZE:i64 = 20;
@@ -22,6 +23,7 @@ struct Game {
     gl: GlGraphics,
     ship: Ship,
     enemies: Enemy,
+    ticks: u64,
 }
 
 impl Game {
@@ -30,15 +32,24 @@ impl Game {
         use graphics;
 
         self.gl.draw(arg.viewport(), |_c, gl | {
-            graphics::clear(graphics::color::BLACK, gl);
+            graphics::clear([0.0, 0.0, 0.0, 1.0], gl);
         });
 
         self.ship.render(&mut self.gl, arg);
+        self.enemies.render(&mut self.gl, arg);
     }
 
     //Update based on event args time
     fn update(&mut self) {
         self.ship.update();
+        
+        if self.ticks % 12 == 0 {
+            self.enemies.spawn();
+        }
+        self.ticks += 1;
+
+        let hits = self.enemies.update(self.ship.current_pos(), self.ship.get_shots());
+        self.ship.collision(hits);
     }
 
     //Update Ship's movement or shoot depending on input
@@ -67,13 +78,14 @@ impl Ship {
     fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs) {
         use graphics;
 
-        let square = graphics::rectangle::square((self.pos_x * GRIDSIZE) as f64,
+
+        let ship = graphics::rectangle::square((self.pos_x * GRIDSIZE) as f64,
                      (self.pos_y * GRIDSIZE) as f64, GRIDSIZE as f64);
 
         gl.draw(args.viewport(), |c,gl| {
             let transform = c.transform;
 
-            graphics::rectangle(graphics::color::WHITE, square, transform, gl);
+            graphics::rectangle(graphics::color::WHITE, ship, transform, gl);
         });
 
         for mut x in self.shots.iter_mut() {
@@ -100,15 +112,15 @@ impl Ship {
         }
 
         //Set bounds fo where the ship can move.
-        if self.pos_x + updated_pos.0 < (WIDTH/20 -1)  && self.pos_y + updated_pos.1 < (HEIGHT/20 -3)
+        if self.pos_x + updated_pos.0 < (WIDTH/GRIDSIZE -1)  && self.pos_y + updated_pos.1 < (HEIGHT/GRIDSIZE -3)
                 && self.pos_x + updated_pos.0 >= 1 && self.pos_y + updated_pos.1 > 3 {
             self.pos_x += updated_pos.0;
             self.pos_y += updated_pos.1;
         }
     }
 
-    //Update aspects of the ship, mainly for the shots.
     fn update(&mut self) {
+    //Update aspects of the ship, mainly for the shots.
         let mut index: usize = 0;
         let mut to_remove: Vec<usize> = Vec::new();
         for x in self.shots.iter_mut() {
@@ -121,14 +133,42 @@ impl Ship {
             else {
                 index += 1;
             }
-        }
-        
+        } 
 
+        self.remove_shots(to_remove);
+    }
+
+    fn get_shots(&mut self) -> &mut Vec<Bullet> {
+        &mut self.shots
+    }
+
+    fn current_pos(&mut self) -> (i64, i64) {
+        (self.pos_x, self.pos_y)
+    }
+
+    fn remove_shots(&mut self, index: Vec<usize>) {
         //Removing bullets that were found as out of bounds.
-        for x in to_remove {
+        for x in index {
             self.shots.remove(x);
         }
-        
+    }
+
+    fn collision(&mut self, hits: Vec<(i64,i64)>) {
+        let mut index: usize = 0;
+        let mut to_remove: Vec<usize> = Vec::new();
+        for x in self.shots.iter_mut() {
+            let x = x.get_pos();
+            for y in hits.iter() {
+                if x.0 == y.0 && x.1 == y.1 {
+                    to_remove.push(index);
+                }
+                else {
+                    index += 1;
+                }
+            }
+        }
+
+        self.remove_shots(to_remove);
     }
 }
 
@@ -159,6 +199,101 @@ impl Bullet {
     }
 }
 
+impl Enemy {
+
+    //renders the ship, also will render the shots when created.
+    fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs) {
+        use graphics;
+
+        for ships in self.list.iter_mut() {
+            let new_ship = graphics::rectangle::square((ships.pos_x * GRIDSIZE) as f64,
+                        (ships.pos_y * GRIDSIZE) as f64, GRIDSIZE as f64);
+
+            gl.draw(args.viewport(), |c,gl| {
+                let transform = c.transform;
+
+                graphics::rectangle(graphics::color::hex("ff0000"), new_ship, transform, gl);
+            });
+        }
+
+    }
+
+    fn spawn(&mut self) {
+        let new_ship = Ship {pos_x: 10, pos_y: 0, shots: Vec::new()};
+        self.list.push(new_ship);
+    }
+
+    fn check_collision(&mut self, y: (i64, i64)) -> bool {
+        let ships = self.current_pos();
+        let mut hit: bool = false;
+        let mut index = 0;
+        for x in ships {
+            if x.0 == y.0 && x.1 == y.1 {
+                hit = true;
+                self.list.remove(index);
+            }
+            else {
+                index += 1;
+            }
+        } 
+
+        hit
+    }
+
+    //Update aspects of the ships, check for collisions with shots or ship
+    fn update(&mut self, ship_pos: (i64, i64), shot_pos: &mut Vec<Bullet>) -> Vec<(i64, i64)> {
+        let mut hits: Vec<(i64, i64)> = Vec::new();
+
+        for x in shot_pos.iter_mut() {
+            let x = x.get_pos();
+            if self.check_collision(x) {
+                hits.push(x);
+            }
+        }
+
+        if self.check_collision(ship_pos) {
+            hits.push(ship_pos);
+        }
+
+        for x in self.list.iter_mut() {
+            x.pos_y += 1;
+        }
+
+        for x in shot_pos.iter_mut() {
+            let x = x.get_pos();
+            if self.check_collision(x) {
+                hits.push(x);
+            }
+        }
+
+        if self.check_collision(ship_pos) {
+            hits.push(ship_pos);
+        }
+
+        let mut index = 0;
+        for x in self.current_pos().iter_mut() {
+            //If enemy goes below
+            if x.1 > (HEIGHT/GRIDSIZE -4) {
+                self.list.remove(index);
+            }
+            else {
+                index += 1;
+            }
+        }
+
+        hits
+    }
+    
+    fn current_pos(&mut self) -> Vec<(i64, i64)> {
+        let mut current_pos: Vec<(i64, i64)> = Vec::new();
+        for ships in self.list.iter_mut() {
+            current_pos.push((ships.pos_x, ships.pos_y))
+        }
+        current_pos
+    }
+
+}
+
 fn main() {
     let opengl = OpenGL::V3_2;
 
@@ -176,6 +311,7 @@ fn main() {
         gl: GlGraphics::new(opengl),
         ship: Ship{pos_x: 10, pos_y: 26, shots: Vec::new()},
         enemies: Enemy{list: Vec::new()},
+        ticks: 0,
     };
 
     let mut events = Events::new(EventSettings::new()).ups(6);
@@ -186,7 +322,7 @@ fn main() {
         }
 
         //Update the game data and render everything
-        if let Some(u) = e.update_args() {
+        if let Some(_u) = e.update_args() {
             game.update();
         }
 
