@@ -5,12 +5,14 @@ extern crate graphics;
 extern crate glutin_window;
 extern crate opengl_graphics;
 extern crate rand;
+extern crate find_folder;
 
 use piston::window::WindowSettings;
 use piston::event_loop::*;
 use piston::input::*;
 use glutin_window::GlutinWindow;
-use opengl_graphics::{GlGraphics, OpenGL};
+use opengl_graphics::{GlGraphics, OpenGL, Texture};
+use graphics::{Image, clear};
 use rand::Rng;
 
 
@@ -33,11 +35,6 @@ struct Game {
 impl Game {
     //Gets screen set and renders ship.
     fn render(&mut self, arg: &RenderArgs) {
-        use graphics;
-
-        self.gl.draw(arg.viewport(), |_c, gl | {
-            graphics::clear([0.0, 0.0, 0.0, 1.0], gl);
-        });
 
         self.ship.render(&mut self.gl, arg);
         self.enemies.render(&mut self.gl, arg);
@@ -96,6 +93,7 @@ impl Ship {
     fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs) {
         use graphics;
 
+        
 
         let ship = graphics::rectangle::square(
             (self.pos_x * GRIDSIZE) as f64,
@@ -378,6 +376,7 @@ fn main() {
             .build()
             .unwrap();
 
+
     //Initialize the game
     let mut game = Game {
         gl: GlGraphics::new(opengl),
@@ -386,11 +385,28 @@ fn main() {
         ticks: 0,
         spawnrate: SPAWNRATE,
     };
-
+        let assets = find_folder::Search::ParentsThenKids(3, 3)
+            .for_folder("assets").unwrap();
+        let background = assets.join("background.png");
+        //Create the image object and attach a square Rectangle object inside.
+        let image   = Image::new().rect(graphics::rectangle::square(0.0, 0.0, HEIGHT as f64));
+        //A texture to use with the image
+        let texture = Texture::from_path(
+            background, 
+            &opengl_graphics::TextureSettings::new())
+            .unwrap();
     let mut events = Events::new(EventSettings::new()).ups(6);
     while let Some(e) = events.next(&mut window) {
         //Initial window render
         if let Some(r) = e.render_args() {
+            game.gl.draw(r.viewport(), |c, gl| {
+            //Clear the screen
+                clear([0.0, 0.0, 0.0, 1.0], gl);
+                //Draw the image with the texture
+                let draw_state = graphics::DrawState::new_alpha();
+                image.draw(&texture, &draw_state, c.transform, gl);
+            });
+
             game.render(&r);
         }
 
