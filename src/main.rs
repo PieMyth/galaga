@@ -4,17 +4,20 @@ extern crate piston;
 extern crate graphics;
 extern crate glutin_window;
 extern crate opengl_graphics;
+extern crate rand;
 
 use piston::window::WindowSettings;
 use piston::event_loop::*;
 use piston::input::*;
 use glutin_window::GlutinWindow;
 use opengl_graphics::{GlGraphics, OpenGL};
+use rand::Rng;
 
 
 static WIDTH:i64= 400;
 static HEIGHT:i64 = 600;
 static GRIDSIZE:i64 = 20;
+static SPAWNRATE:u64 = 10;
 
 //Starting out layout was used from the examples
 //in the Piston Library and this video
@@ -24,6 +27,7 @@ struct Game {
     ship: Ship,
     enemies: Enemy,
     ticks: u64,
+    spawnrate: u64,
 }
 
 impl Game {
@@ -42,13 +46,27 @@ impl Game {
     //Update based on event args time
     fn update(&mut self) {
         self.ship.update();
-        
-        if self.ticks % 12 == 0 {
+
+        let mut spawns = (self.ticks/self.spawnrate)/2;
+        if spawns < 2 {
+            spawns = 2;
+        }
+        else {
+            if spawns > 3 {
+                spawns = 3;
+            }
+        }
+        for _ in 0..spawns{
             self.enemies.spawn();
         }
+        
+        
         self.ticks += 1;
 
-        let hits = self.enemies.update(self.ship.current_pos(), self.ship.get_shots());
+        let hits = self.enemies.update(
+            self.ship.current_pos(), 
+            self.ship.get_shots());
+
         self.ship.collision(hits);
     }
 
@@ -79,13 +97,19 @@ impl Ship {
         use graphics;
 
 
-        let ship = graphics::rectangle::square((self.pos_x * GRIDSIZE) as f64,
-                     (self.pos_y * GRIDSIZE) as f64, GRIDSIZE as f64);
+        let ship = graphics::rectangle::square(
+            (self.pos_x * GRIDSIZE) as f64,
+            (self.pos_y * GRIDSIZE) as f64, 
+            GRIDSIZE as f64);
 
         gl.draw(args.viewport(), |c,gl| {
             let transform = c.transform;
 
-            graphics::rectangle(graphics::color::WHITE, ship, transform, gl);
+            graphics::rectangle(
+                graphics::color::WHITE,
+                ship,
+                transform,
+                gl);
         });
 
         for mut x in self.shots.iter_mut() {
@@ -106,14 +130,20 @@ impl Ship {
         //Only allow 5 shots on the screen at a time.
         if self.shots.len() < 5 {
             if btn == &Button::Keyboard(Key::Z) {
-                let new_bullet = Bullet{pos_x: self.pos_x, pos_y: self.pos_y};
+                let new_bullet = Bullet{
+                    pos_x: self.pos_x,
+                    pos_y: self.pos_y};
+
                 self.shots.push(new_bullet);
             }
         }
 
         //Set bounds fo where the ship can move.
-        if self.pos_x + updated_pos.0 < (WIDTH/GRIDSIZE -1)  && self.pos_y + updated_pos.1 < (HEIGHT/GRIDSIZE -3)
-                && self.pos_x + updated_pos.0 >= 1 && self.pos_y + updated_pos.1 > 3 {
+        if self.pos_x + updated_pos.0 < (WIDTH/GRIDSIZE -1)  
+            && self.pos_y + updated_pos.1 < (HEIGHT/GRIDSIZE -3)
+            && self.pos_x + updated_pos.0 >= 1 
+            && self.pos_y + updated_pos.1 > 3 {
+
             self.pos_x += updated_pos.0;
             self.pos_y += updated_pos.1;
         }
@@ -149,22 +179,29 @@ impl Ship {
     fn remove_shots(&mut self, index: Vec<usize>) {
         //Removing bullets that were found as out of bounds.
         for x in index {
-            self.shots.remove(x);
+            if x < self.shots.len() {
+                self.shots.remove(x);
+            }
         }
     }
 
     fn collision(&mut self, hits: Vec<(i64,i64)>) {
         let mut index: usize = 0;
         let mut to_remove: Vec<usize> = Vec::new();
+        let mut matched:bool = false;
         for x in self.shots.iter_mut() {
             let x = x.get_pos();
             for y in hits.iter() {
                 if x.0 == y.0 && x.1 == y.1 {
                     to_remove.push(index);
+                    matched = true;
                 }
-                else {
-                    index += 1;
-                }
+            }
+            if !matched {
+                index += 1;
+            }
+            else {
+                matched = false;
             }
         }
 
@@ -177,13 +214,19 @@ impl Bullet {
     fn render(&self, gl: &mut GlGraphics, args: &RenderArgs) {
         use graphics;
 
-        let square = graphics::rectangle::square((self.pos_x * GRIDSIZE) as f64,
-                     (self.pos_y * GRIDSIZE) as f64, GRIDSIZE as f64);
+        let square = graphics::rectangle::square(
+                    (self.pos_x * GRIDSIZE) as f64,
+                    (self.pos_y * GRIDSIZE) as f64,
+                    GRIDSIZE as f64);
 
         gl.draw(args.viewport(), |c,gl| {
             let transform = c.transform;
 
-            graphics::rectangle(graphics::color::hex("FFFF00"), square, transform, gl);
+            graphics::rectangle(
+                graphics::color::hex("FFFF00"), 
+                square, 
+                transform, 
+                gl);
         });
 
     }
@@ -206,20 +249,28 @@ impl Enemy {
         use graphics;
 
         for ships in self.list.iter_mut() {
-            let new_ship = graphics::rectangle::square((ships.pos_x * GRIDSIZE) as f64,
-                        (ships.pos_y * GRIDSIZE) as f64, GRIDSIZE as f64);
+            let new_ship = graphics::rectangle::square(
+                        (ships.pos_x * GRIDSIZE) as f64,
+                        (ships.pos_y * GRIDSIZE) as f64, 
+                        GRIDSIZE as f64);
 
             gl.draw(args.viewport(), |c,gl| {
                 let transform = c.transform;
 
-                graphics::rectangle(graphics::color::hex("ff0000"), new_ship, transform, gl);
+                graphics::rectangle(
+                    graphics::color::hex("ff0000"), 
+                    new_ship, 
+                    transform, 
+                    gl);
             });
         }
 
     }
 
     fn spawn(&mut self) {
-        let new_ship = Ship {pos_x: 10, pos_y: 0, shots: Vec::new()};
+        let mut rng = rand::thread_rng();
+        let pos_x: i64 = rng.gen_range(1, WIDTH/GRIDSIZE -1);
+        let new_ship = Ship {pos_x, pos_y: -1, shots: Vec::new()};
         self.list.push(new_ship);
     }
 
@@ -235,13 +286,19 @@ impl Enemy {
             else {
                 index += 1;
             }
+
+            if hit {
+                break
+            }
         } 
 
         hit
     }
 
     //Update aspects of the ships, check for collisions with shots or ship
-    fn update(&mut self, ship_pos: (i64, i64), shot_pos: &mut Vec<Bullet>) -> Vec<(i64, i64)> {
+    fn update(&mut self, 
+              ship_pos: (i64, i64), 
+              shot_pos: &mut Vec<Bullet>) -> Vec<(i64, i64)> {
         let mut hits: Vec<(i64, i64)> = Vec::new();
 
         for x in shot_pos.iter_mut() {
@@ -312,6 +369,7 @@ fn main() {
         ship: Ship{pos_x: 10, pos_y: 26, shots: Vec::new()},
         enemies: Enemy{list: Vec::new()},
         ticks: 0,
+        spawnrate: SPAWNRATE,
     };
 
     let mut events = Events::new(EventSettings::new()).ups(6);

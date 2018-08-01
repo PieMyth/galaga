@@ -244,6 +244,7 @@ dependencies = [
  "piston2d-graphics 0.26.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "piston2d-opengl_graphics 0.52.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "pistoncore-glutin_window 0.45.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
