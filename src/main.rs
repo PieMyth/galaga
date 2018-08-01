@@ -47,7 +47,7 @@ impl Game {
     fn update(&mut self) {
         self.ship.update();
 
-        let mut spawns = (self.ticks as f64 / self.spawnrate as f64).sqrt()/2.0;
+        let mut spawns = (self.ticks as f64 / self.spawnrate as f64).sqrt()/4.0;
         if spawns < 1.0 {
             spawns = 1.0;
         }
@@ -300,11 +300,19 @@ impl Enemy {
               ship_pos: (i64, i64), 
               shot_pos: &mut Vec<Bullet>) -> Vec<(i64, i64)> {
         let mut hits: Vec<(i64, i64)> = Vec::new();
-
+        let mut prev_hits: Vec<(i64, i64)> = Vec::new();
+        let mut prev: bool = false;
         for x in shot_pos.iter_mut() {
             let x = x.get_pos();
-            if self.check_collision(x) {
-                hits.push(x);
+            for y in prev_hits.iter_mut() {
+                if x.0 == y.0 && x.1 == y.1 {
+                    prev = true;
+                }
+            }
+            if !prev && self.check_collision(x) {
+                hits.push(x.clone());
+                prev_hits.push(x);
+                prev = false;
             }
         }
 
@@ -318,8 +326,15 @@ impl Enemy {
 
         for x in shot_pos.iter_mut() {
             let x = x.get_pos();
-            if self.check_collision(x) {
-                hits.push(x);
+            for y in prev_hits.iter_mut() {
+                if x.0 == y.0 && x.1 == y.1 {
+                    prev = true;
+                }
+            }
+            if !prev && self.check_collision(x) {
+                hits.push(x.clone());
+                prev_hits.push(x);
+                prev = false;
             }
         }
 
@@ -343,7 +358,7 @@ impl Enemy {
     
     fn current_pos(&mut self) -> Vec<(i64, i64)> {
         let mut current_pos: Vec<(i64, i64)> = Vec::new();
-        for ships in self.list.iter_mut() {
+        for ships in self.list.iter() {
             current_pos.push((ships.pos_x, ships.pos_y))
         }
         current_pos
