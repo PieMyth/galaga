@@ -47,16 +47,16 @@ impl Game {
     fn update(&mut self) {
         self.ship.update();
 
-        let mut spawns = (self.ticks/self.spawnrate)/2;
-        if spawns < 2 {
-            spawns = 2;
+        let mut spawns = (self.ticks as f64 / self.spawnrate as f64).sqrt()/2.0;
+        if spawns < 1.0 {
+            spawns = 1.0;
         }
         else {
-            if spawns > 3 {
-                spawns = 3;
+            if spawns > 5.0 {
+                spawns = 5.0;
             }
         }
-        for _ in 0..spawns{
+        for _ in 0..spawns as u64{
             self.enemies.spawn();
         }
         
