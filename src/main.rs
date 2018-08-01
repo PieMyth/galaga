@@ -34,17 +34,17 @@ struct Game {
 
 impl Game {
     //Gets screen set and renders ship.
-    fn render(&mut self, arg: &RenderArgs) {
+    fn render(&mut self, arg: &RenderArgs, xwing: &Texture, fighter: &Texture) {
 
-        self.ship.render(&mut self.gl, arg);
-        self.enemies.render(&mut self.gl, arg);
+        self.ship.render(&mut self.gl, arg, xwing);
+        self.enemies.render(&mut self.gl, arg, fighter);
     }
 
     //Update based on event args time
     fn update(&mut self) {
         self.ship.update();
 
-        let mut spawns = (self.ticks as f64 / self.spawnrate as f64).sqrt()/4.0;
+        let mut spawns = (self.ticks as f64 / self.spawnrate as f64).sqrt()/(SPAWNRATE*10) as f64;
         if spawns < 1.0 {
             spawns = 1.0;
         }
@@ -90,24 +90,17 @@ struct Bullet {
 
 impl Ship {
     //renders the ship, also will render the shots when created.
-    fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs) {
+    fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs, texture: &Texture) {
         use graphics;
 
-        
+        let ship   = Image::new().rect(
+            graphics::rectangle::square((self.pos_x*GRIDSIZE) as f64, (self.pos_y*GRIDSIZE) as f64 , GRIDSIZE as f64));
 
-        let ship = graphics::rectangle::square(
-            (self.pos_x * GRIDSIZE) as f64,
-            (self.pos_y * GRIDSIZE) as f64, 
-            GRIDSIZE as f64);
 
         gl.draw(args.viewport(), |c,gl| {
-            let transform = c.transform;
-
-            graphics::rectangle(
-                graphics::color::WHITE,
-                ship,
-                transform,
-                gl);
+            //Draw the image with the texture
+            let draw_state = graphics::DrawState::new_alpha();
+            ship.draw(texture, &draw_state, c.transform, gl)
         });
 
         for mut x in self.shots.iter_mut() {
@@ -130,7 +123,7 @@ impl Ship {
             if btn == &Button::Keyboard(Key::Z) {
                 let new_bullet = Bullet{
                     pos_x: self.pos_x,
-                    pos_y: self.pos_y};
+                    pos_y: self.pos_y-1};
 
                 self.shots.push(new_bullet);
             }
@@ -213,9 +206,9 @@ impl Bullet {
         use graphics;
 
         let square = graphics::rectangle::square(
-                    (self.pos_x * GRIDSIZE) as f64,
+                    (self.pos_x* GRIDSIZE + GRIDSIZE-15) as f64,
                     (self.pos_y * GRIDSIZE) as f64,
-                    GRIDSIZE as f64);
+                    (GRIDSIZE/2) as f64);
 
         gl.draw(args.viewport(), |c,gl| {
             let transform = c.transform;
@@ -243,25 +236,20 @@ impl Bullet {
 impl Enemy {
 
     //renders the ship, also will render the shots when created.
-    fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs) {
+    fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs, texture: &Texture) {
         use graphics;
 
         for ships in self.list.iter_mut() {
-            let new_ship = graphics::rectangle::square(
-                        (ships.pos_x * GRIDSIZE) as f64,
-                        (ships.pos_y * GRIDSIZE) as f64, 
-                        GRIDSIZE as f64);
-
+            let new_ship   = Image::new().rect(
+                graphics::rectangle::square((ships.pos_x*GRIDSIZE) as f64, (ships.pos_y*GRIDSIZE) as f64 , GRIDSIZE as f64));
+            
             gl.draw(args.viewport(), |c,gl| {
-                let transform = c.transform;
-
-                graphics::rectangle(
-                    graphics::color::hex("ff0000"), 
-                    new_ship, 
-                    transform, 
-                    gl);
+                //Draw the image with the texture
+                let draw_state = graphics::DrawState::new_alpha();
+                new_ship.draw(texture, &draw_state, c.transform, gl)
             });
-        }
+
+       }
 
     }
 
@@ -388,11 +376,21 @@ fn main() {
         let assets = find_folder::Search::ParentsThenKids(3, 3)
             .for_folder("assets").unwrap();
         let background = assets.join("background.png");
+        let xwing = assets.join("ship.png");
+        let fighter = assets.join("tiefighter.png");
         //Create the image object and attach a square Rectangle object inside.
         let image   = Image::new().rect(graphics::rectangle::square(0.0, 0.0, HEIGHT as f64));
         //A texture to use with the image
-        let texture = Texture::from_path(
+        let background_texture = Texture::from_path(
             background, 
+            &opengl_graphics::TextureSettings::new())
+            .unwrap();
+        let xwing_texture = Texture::from_path(
+            xwing, 
+            &opengl_graphics::TextureSettings::new())
+            .unwrap();
+        let fighter_texture = Texture::from_path(
+            fighter, 
             &opengl_graphics::TextureSettings::new())
             .unwrap();
     let mut events = Events::new(EventSettings::new()).ups(6);
@@ -404,10 +402,10 @@ fn main() {
                 clear([0.0, 0.0, 0.0, 1.0], gl);
                 //Draw the image with the texture
                 let draw_state = graphics::DrawState::new_alpha();
-                image.draw(&texture, &draw_state, c.transform, gl);
+                image.draw(&background_texture, &draw_state, c.transform, gl)
             });
 
-            game.render(&r);
+            game.render(&r, &xwing_texture, &fighter_texture);
         }
 
         //Update the game data and render everything
