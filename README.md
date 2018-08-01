@@ -1,5 +1,5 @@
 # Galaga
-This game was intended to be a simple version of the arcade games Galaga and Space Invaders with a twist.
+This game was intended to be a simple version of the arcade games Galaga and Space Invaders with a twist themed in star wars sprites.
 
 # Controls
 The controls are pretty basic:
