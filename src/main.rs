@@ -42,8 +42,6 @@ impl Game {
 
     //Update based on event args time
     fn update(&mut self) {
-        self.ship.update();
-
         let mut spawns = (self.ticks as f64 / self.spawnrate as f64).sqrt()/(SPAWNRATE*10) as f64;
         if spawns < 1.0 {
             spawns = 1.0;
@@ -60,9 +58,10 @@ impl Game {
         
         self.ticks += 1;
 
+        self.ship.update(false);
         let hits = self.enemies.update(
             self.ship.current_pos(), 
-            self.ship.get_shots());
+            self.ship.get_shots(), false);
 
         self.ship.collision(hits);
     }
@@ -70,6 +69,11 @@ impl Game {
     //Update Ship's movement or shoot depending on input
     fn pressed(&mut self, btn: &Button) {
         self.ship.kmove(btn);
+        let hits = self.enemies.update(
+            self.ship.current_pos(), 
+            self.ship.get_shots(), true);
+
+        self.ship.collision(hits);
     }
 }
 
@@ -140,21 +144,23 @@ impl Ship {
         }
     }
 
-    fn update(&mut self) {
+    fn update(&mut self, moved: bool) {
     //Update aspects of the ship, mainly for the shots.
         let mut index: usize = 0;
         let mut to_remove: Vec<usize> = Vec::new();
-        for x in self.shots.iter_mut() {
-            x.update();
+        if !moved {
+            for x in self.shots.iter_mut() {
+                x.update();
 
-            //If bullet goes above screen
-            if x.get_pos().1 < 0 {
-                to_remove.push(index);
-            }
-            else {
-                index += 1;
-            }
-        } 
+                //If bullet goes above screen
+                if x.get_pos().1 < 0 {
+                    to_remove.push(index);
+                }
+                else {
+                    index += 1;
+                }
+            } 
+        }
 
         self.remove_shots(to_remove);
     }
@@ -206,7 +212,7 @@ impl Bullet {
         use graphics;
 
         let square = graphics::rectangle::square(
-                    (self.pos_x* GRIDSIZE + GRIDSIZE-15) as f64,
+                    (self.pos_x* GRIDSIZE + GRIDSIZE/4) as f64,
                     (self.pos_y * GRIDSIZE) as f64,
                     (GRIDSIZE/2) as f64);
 
@@ -241,7 +247,10 @@ impl Enemy {
 
         for ships in self.list.iter_mut() {
             let new_ship   = Image::new().rect(
-                graphics::rectangle::square((ships.pos_x*GRIDSIZE) as f64, (ships.pos_y*GRIDSIZE) as f64 , GRIDSIZE as f64));
+                graphics::rectangle::square(
+                    (ships.pos_x*GRIDSIZE) as f64,
+                    (ships.pos_y*GRIDSIZE) as f64,
+                    GRIDSIZE as f64));
             
             gl.draw(args.viewport(), |c,gl| {
                 //Draw the image with the texture
@@ -261,13 +270,17 @@ impl Enemy {
     }
 
     fn check_collision(&mut self, y: (i64, i64)) -> bool {
-        let ships = self.current_pos();
         let mut hit: bool = false;
         let mut index = 0;
-        for x in ships {
-            if x.0 == y.0 && x.1 == y.1 {
-                hit = true;
-                self.list.remove(index);
+        for x in self.current_pos() {
+            if x.0 == y.0{
+                if x.1 == y.1 || x.1 == y.1+1 {
+                    hit = true;
+                    self.list.remove(index);
+                }
+                else {
+                    index += 1; 
+                }
             }
             else {
                 index += 1;
@@ -284,7 +297,8 @@ impl Enemy {
     //Update aspects of the ships, check for collisions with shots or ship
     fn update(&mut self, 
               ship_pos: (i64, i64), 
-              shot_pos: &mut Vec<Bullet>) -> Vec<(i64, i64)> {
+              shot_pos: &mut Vec<Bullet>,
+              movement:bool) -> Vec<(i64, i64)> {
         let mut hits: Vec<(i64, i64)> = Vec::new();
         let mut prev_hits: Vec<(i64, i64)> = Vec::new();
         let mut prev: bool = false;
@@ -306,26 +320,14 @@ impl Enemy {
             hits.push(ship_pos);
         }
 
-        for x in self.list.iter_mut() {
-            x.pos_y += 1;
-        }
-
-        for x in shot_pos.iter_mut() {
-            let x = x.get_pos();
-            for y in prev_hits.iter_mut() {
-                if x.0 == y.0 && x.1 == y.1 {
-                    prev = true;
-                }
+        if !movement {
+            for x in self.list.iter_mut() {
+                x.pos_y += 1;
             }
-            if !prev && self.check_collision(x) {
-                hits.push(x.clone());
-                prev_hits.push(x);
-                prev = false;
+        
+            if self.check_collision(ship_pos) {
+                hits.push(ship_pos);
             }
-        }
-
-        if self.check_collision(ship_pos) {
-            hits.push(ship_pos);
         }
 
         let mut index = 0;
@@ -338,7 +340,6 @@ impl Enemy {
                 index += 1;
             }
         }
-
         hits
     }
     
