@@ -377,8 +377,8 @@ fn main() {
         let assets = find_folder::Search::ParentsThenKids(3, 3)
             .for_folder("assets").unwrap();
         let background = assets.join("background.png");
-        let xwing = assets.join("ship.png");
-        let fighter = assets.join("tiefighter.png");
+        let ship = assets.join("ship.png");
+        let fighter = assets.join("enemy.png");
         //Create the image object and attach a square Rectangle object inside.
         let image   = Image::new().rect(graphics::rectangle::square(0.0, 0.0, HEIGHT as f64));
         //A texture to use with the image
@@ -386,8 +386,8 @@ fn main() {
             background, 
             &opengl_graphics::TextureSettings::new())
             .unwrap();
-        let xwing_texture = Texture::from_path(
-            xwing, 
+        let ship_texture = Texture::from_path(
+            ship, 
             &opengl_graphics::TextureSettings::new())
             .unwrap();
         let fighter_texture = Texture::from_path(
@@ -406,7 +406,7 @@ fn main() {
                 image.draw(&background_texture, &draw_state, c.transform, gl)
             });
 
-            game.render(&r, &xwing_texture, &fighter_texture);
+            game.render(&r, &ship_texture, &fighter_texture);
         }
 
         //Update the game data and render everything
