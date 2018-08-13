@@ -555,6 +555,16 @@ fn main() {
                 text::Text::new_color([1.0, 1.0, 1.0, 1.0], 32)
                     .draw(&score, &mut glyphs, &c.draw_state, transform, gl).unwrap();
 
+                if game_over {
+                    let transform = c.transform.trans((WIDTH/4 + 15) as f64, (HEIGHT/2 -20) as f64);
+                    text::Text::new_color([1.0,1.0,1.0,1.0], 32)
+                        .draw("GAME OVER",
+                              &mut glyphs, &c.draw_state, transform, gl).unwrap();
+                    let transform = c.transform.trans((WIDTH/4 - 5) as f64, (HEIGHT/2 +10) as f64);
+                    text::Text::new_color([1.0,1.0,1.0,1.0], 24)
+                        .draw("Press 'R' To Restart",
+                              &mut glyphs, &c.draw_state, transform, gl).unwrap();
+                }
             });
 
             game.render(&r, &ship_texture, &fighter_texture, &rock_texture);
