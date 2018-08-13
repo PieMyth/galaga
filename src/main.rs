@@ -11,8 +11,8 @@ use piston::window::WindowSettings;
 use piston::event_loop::*;
 use piston::input::*;
 use glutin_window::GlutinWindow;
-use opengl_graphics::{GlGraphics, OpenGL, Texture};
-use graphics::{Image, clear};
+use opengl_graphics::{GlGraphics, OpenGL, Texture, GlyphCache};
+use graphics::{Image, clear, text, Transformed};
 use rand::Rng;
 
 
@@ -20,6 +20,7 @@ static WIDTH:i64= 400;
 static HEIGHT:i64 = 600;
 static GRIDSIZE:i64 = 20;
 static SPAWNRATE:u64 = 10;
+static POINTS: u64 = 25;
 
 //Starting out layout was used from the examples
 //in the Piston Library and this video
@@ -40,9 +41,13 @@ impl Game {
         self.ship.render(&mut self.gl, arg, player);
         self.enemies.render(&mut self.gl, arg, fighter, rock);
 
+    }
+
+    fn score(&mut self) -> String {
         let mut score = "Score: ".to_string();
         score.push_str(&self.score.to_string());
 
+        score
     }
 
     //Update based on event args time
@@ -230,7 +235,7 @@ impl Ship {
             for y in hits.iter() {
                 if x.0 == y.0 && x.1 == y.1 {
                     to_remove.push(index);
-                    score += 100;
+                    score += POINTS;
                     matched = true;
                 }
             }
@@ -501,36 +506,43 @@ fn main() {
         spawnrate: SPAWNRATE,
         score: 0,
     };
-        let assets = find_folder::Search::ParentsThenKids(3, 3)
-            .for_folder("assets").unwrap();
-        let background = assets.join("background.png");
-        let ship = assets.join("ship.png");
-        let fighter = assets.join("enemy.png");
-        let rock = assets.join("rock.png");
-        //Create the image object and attach a square Rectangle object inside.
-        let image   = Image::new().rect(graphics::rectangle::square(0.0, 0.0, HEIGHT as f64));
-        //A texture to use with the image
-        let background_texture = Texture::from_path(
-            background, 
-            &opengl_graphics::TextureSettings::new())
-            .unwrap();
-        let ship_texture = Texture::from_path(
-            ship, 
-            &opengl_graphics::TextureSettings::new())
-            .unwrap();
-        let fighter_texture = Texture::from_path(
-            fighter, 
-            &opengl_graphics::TextureSettings::new())
-            .unwrap();
-        let rock_texture = Texture::from_path(
-            rock,
-            &opengl_graphics::TextureSettings::new())
-            .unwrap();
+    let assets = find_folder::Search::ParentsThenKids(3, 3)
+        .for_folder("assets").unwrap();
+    let background = assets.join("background.png");
+    let ship = assets.join("ship.png");
+    let fighter = assets.join("enemy.png");
+    let rock = assets.join("rock.png");
+    let font = assets.join("FiraSans-Regular.ttf");
+    //Create the image object and attach a square Rectangle object inside.
+    let image   = Image::new().rect(
+        graphics::rectangle::square(0.0, 0.0, HEIGHT as f64));
+        
+    //A texture to use with the image
+    let background_texture = Texture::from_path(
+        background, 
+        &opengl_graphics::TextureSettings::new())
+        .unwrap();
+    let ship_texture = Texture::from_path(
+        ship, 
+        &opengl_graphics::TextureSettings::new())
+        .unwrap();
+    let fighter_texture = Texture::from_path(
+        fighter, 
+        &opengl_graphics::TextureSettings::new())
+        .unwrap();
+    let rock_texture = Texture::from_path(
+        rock,
+        &opengl_graphics::TextureSettings::new())
+        .unwrap();
 
+    let mut glyphs = GlyphCache::new(font,
+                    (),
+                    opengl_graphics::TextureSettings::new()).unwrap();
     let mut events = Events::new(EventSettings::new()).ups(6);
     let mut game_over = false;
     let mut reset = false;
     while let Some(e) = events.next(&mut window) {
+        let score = game.score();
         //Initial window render
         if let Some(r) = e.render_args() {
             game.gl.draw(r.viewport(), |c, gl| {
@@ -538,7 +550,11 @@ fn main() {
                 clear([0.0, 0.0, 0.0, 1.0], gl);
                 //Draw the image with the texture
                 let draw_state = graphics::DrawState::new_alpha();
-                image.draw(&background_texture, &draw_state, c.transform, gl)
+                image.draw(&background_texture, &draw_state, c.transform, gl);
+                let transform = c.transform.trans(1.0, (HEIGHT) as f64);
+                text::Text::new_color([1.0, 1.0, 1.0, 1.0], 32)
+                    .draw(&score, &mut glyphs, &c.draw_state, transform, gl).unwrap();
+
             });
 
             game.render(&r, &ship_texture, &fighter_texture, &rock_texture);
