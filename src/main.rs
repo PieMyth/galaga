@@ -36,7 +36,11 @@ struct Game {
 
 impl Game {
     //Gets screen set and renders ship.
-    fn render(&mut self, arg: &RenderArgs, player: &Texture, fighter: &Texture, rock: &Texture) {
+    fn render(&mut self, 
+              arg: &RenderArgs, 
+              player: &Texture, 
+              fighter: &Texture, 
+              rock: &Texture) {
 
         self.ship.render(&mut self.gl, arg, player);
         self.enemies.render(&mut self.gl, arg, fighter, rock);
@@ -52,30 +56,24 @@ impl Game {
 
     //Update based on event args time
     fn update(&mut self) -> bool{
-        let mut spawns = (self.ticks as f64 / self.spawnrate as f64).sqrt()/(SPAWNRATE*10) as f64;
+        let mut spawns = (
+            self.ticks as f64 / self.spawnrate as f64)
+            .sqrt()/(SPAWNRATE*10) as f64;
+
         if spawns < 1.0 {
             spawns = 1.0;
         }
-        else {
-            if spawns > 5.0 {
+        if spawns > 5.0 {
                 spawns = 5.0;
-            }
         }
         for _ in 0..spawns as u64{
             self.enemies.spawnship();
         }
         
-        if self.ticks > 60 {
-            if self.ticks %3 == 0 && self.ticks > 240 {
+        if (self.ticks %3 == 0 && self.ticks > 240) ||
+            (self.ticks%7 == 0 && self.ticks > 60) {
                 self.enemies.spawnrock(self.ship.current_pos().0);
-            }
-            else {
-                if self.ticks % 7 == 0 {
-                    self.enemies.spawnrock(self.ship.current_pos().0);
-                }
-            }
         }
-
 
         self.ticks += 1;
 
@@ -87,10 +85,9 @@ impl Game {
         let result = self.ship.collision(hits);
         self.score += result.1;
 
-        if result.0 == true {
+        if result.0 {
             return true;
         }
-
         false
     }
 
@@ -137,11 +134,18 @@ struct Bullet {
 
 impl Ship {
     //renders the ship, also will render the shots when created.
-    fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs, texture: &Texture) {
+    fn render(&mut self, 
+              gl: &mut GlGraphics, 
+              args: &RenderArgs, 
+              texture: &Texture) {
+
         use graphics;
 
         let ship   = Image::new().rect(
-            graphics::rectangle::square((self.pos_x*GRIDSIZE) as f64, (self.pos_y*GRIDSIZE) as f64 , GRIDSIZE as f64));
+            graphics::rectangle::square(
+                (self.pos_x*GRIDSIZE) as f64, 
+                (self.pos_y*GRIDSIZE) as f64 , 
+                GRIDSIZE as f64));
 
 
         gl.draw(args.viewport(), |c,gl| {
@@ -150,7 +154,7 @@ impl Ship {
             ship.draw(texture, &draw_state, c.transform, gl)
         });
 
-        for mut x in self.shots.iter_mut() {
+        for mut x in (&mut self.shots).iter_mut() {
             x.render(gl, args);
         }
     }
@@ -158,22 +162,22 @@ impl Ship {
     //Moving the ship around or shooting
     fn kmove(&mut self, btn: &Button) {
         let updated_pos = match btn {
-            &Button::Keyboard(Key::Up) => (0,-1),
-            &Button::Keyboard(Key::Down) => (0, 1),
-            &Button::Keyboard(Key::Left) => (-1, 0),
-            &Button::Keyboard(Key::Right) => (1, 0),
+            Button::Keyboard(Key::Up) => (0,-1),
+            Button::Keyboard(Key::Down) => (0, 1),
+            Button::Keyboard(Key::Left) => (-1, 0),
+            Button::Keyboard(Key::Right) => (1, 0),
             _ => (0,0),
         };
 
         //Only allow 5 shots on the screen at a time.
-        if self.shots.len() < 5 {
-            if btn == &Button::Keyboard(Key::Z) {
+        if self.shots.len() < 5 && 
+            btn == &Button::Keyboard(Key::Z) {
                 let new_bullet = Bullet{
                     pos_x: self.pos_x,
                     pos_y: self.pos_y-1};
 
                 self.shots.push(new_bullet);
-            }
+            
         }
 
         //Set bounds fo where the ship can move.
@@ -192,7 +196,7 @@ impl Ship {
         let mut index: usize = 0;
         let mut to_remove: Vec<usize> = Vec::new();
         if !moved {
-            for x in self.shots.iter_mut() {
+            for x in (&mut self.shots).iter_mut() {
                 x.update();
 
                 //If bullet goes above screen
@@ -226,13 +230,15 @@ impl Ship {
     }
 
     fn collision(&mut self, hits: Vec<(i64,i64)>) -> (bool, u64){
+
         let mut index: usize = 0;
         let mut score = 0;
         let mut to_remove: Vec<usize> = Vec::new();
         let mut matched:bool = false;
-        for x in self.shots.iter_mut() {
+
+        for x in (&mut self.shots).iter_mut() {
             let x = x.get_pos();
-            for y in hits.iter() {
+            for y in (&hits).iter() {
                 if x.0 == y.0 && x.1 == y.1 {
                     to_remove.push(index);
                     score += POINTS;
@@ -251,7 +257,7 @@ impl Ship {
 
         matched = false;
         let ship_pos = self.current_pos();
-        for x in hits.iter() {
+        for x in hits {
             if ship_pos.0 == x.0 && ship_pos.1 == x.1 {
                 matched = true;
             }
@@ -264,6 +270,7 @@ impl Ship {
         (matched, score)
     }
 
+    //Clear the shots and reset ship to default position.
     fn restart(&mut self) {
         self.shots.clear();
         self.pos_x = 10;
@@ -285,6 +292,7 @@ impl Bullet {
             let transform = c.transform;
 
             graphics::rectangle(
+                //Yellow in hex color
                 graphics::color::hex("FFFF00"), 
                 square, 
                 transform, 
@@ -307,10 +315,15 @@ impl Bullet {
 impl Enemy {
 
     //renders the ship, also will render the shots when created.
-    fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs, shiptexture: &Texture, rocktexture: &Texture) {
+    fn render(&mut self, 
+              gl: &mut GlGraphics, 
+              args: &RenderArgs, 
+              shiptexture: &Texture, 
+              rocktexture: &Texture) {
+        
         use graphics;
 
-        for ships in self.list.iter_mut() {
+        for ships in (&mut self.list).iter_mut() {
             let new_ship   = Image::new().rect(
                 graphics::rectangle::square(
                     (ships.pos_x*GRIDSIZE) as f64,
@@ -325,7 +338,7 @@ impl Enemy {
 
         }
 
-       for rock in self.rocks.iter_mut() {
+       for rock in (&mut self.rocks).iter_mut() {
             let new_rock   = Image::new().rect(
                 graphics::rectangle::square(
                     (rock.pos_x*GRIDSIZE) as f64,
@@ -340,9 +353,9 @@ impl Enemy {
 
         }
 
-
     }
 
+    //Spawn ship's randomly on the x position.
     fn spawnship(&mut self) {
         let mut rng = rand::thread_rng();
         let pos_x: i64 = rng.gen_range(1, WIDTH/GRIDSIZE -1);
@@ -350,11 +363,14 @@ impl Enemy {
         self.list.push(new_ship);
     }
 
+    //Creats a rock, set x position to the player ship's
+    //current x position.
     fn spawnrock(&mut self, pos_x: i64) {
         let new_ship = Ship {pos_x, pos_y: -1, shots: Vec::new()};
         self.rocks.push(new_ship);
     }
 
+    //Check collision for enemy ships
     fn ship_collision(&mut self, y: (i64, i64)) -> bool {
         let mut hit: bool = false;
         let mut index = 0;
@@ -380,14 +396,14 @@ impl Enemy {
         hit
     }
 
+    //Check collision of rocks.
     fn rock_collision(&mut self, y: (i64, i64)) -> bool {
         let mut hit: bool = false;
-        for x in self.rocks.iter_mut() {
+        for x in (&mut self.rocks).iter_mut() {
             let mut x = x.current_pos();
-            if x.0 == y.0{
-                if x.1 == y.1 || x.1 == y.1+1 {
+            if x.0 == y.0 && 
+                (x.1 == y.1 || x.1 == y.1+1) {
                     hit = true;
-                }
             }
 
             if hit {
@@ -403,36 +419,41 @@ impl Enemy {
               ship_pos: (i64, i64), 
               shot_pos: &mut Vec<Bullet>,
               movement:bool) -> Vec<(i64, i64)> {
+
         let mut hits: Vec<(i64, i64)> = Vec::new();
         let mut prev_hits: Vec<(i64, i64)> = Vec::new();
         let mut prev: bool = false;
+
         for x in shot_pos.iter_mut() {
             let x = x.get_pos();
-            for y in prev_hits.iter_mut() {
+            for y in (&mut prev_hits).iter_mut() {
                 if x.0 == y.0 && x.1 == y.1 {
                     prev = true;
                 }
             }
-            if !prev && (self.ship_collision(x) || self.rock_collision(x)) {
-                hits.push(x.clone());
+            if !prev && (self.ship_collision(x) 
+                         || self.rock_collision(x)) {
+                hits.push(x);
                 prev_hits.push(x);
                 prev = false;
             }
         }
 
-        if self.ship_collision(ship_pos) || self.rock_collision(ship_pos){
+        if self.ship_collision(ship_pos) 
+            || self.rock_collision(ship_pos){
             hits.push(ship_pos);
         }
 
         if !movement {
-            for x in self.list.iter_mut() {
+            for x in (&mut self.list).iter_mut() {
                 x.pos_y += 1;
             }
-            for x in self.rocks.iter_mut() {
+            for x in (&mut self.rocks).iter_mut() {
                 x.pos_y += 1;
             }
         
-            if self.ship_collision(ship_pos) || self.rock_collision(ship_pos){
+            if self.ship_collision(ship_pos) || 
+                self.rock_collision(ship_pos){
                 hits.push(ship_pos);
             }
         }
@@ -461,22 +482,26 @@ impl Enemy {
         hits
     }
     
+
+    //Grabs the positions of all the ships.
     fn current_pos(&mut self) -> Vec<(i64, i64)> {
         let mut current_pos: Vec<(i64, i64)> = Vec::new();
-        for ships in self.list.iter() {
+        for ships in (&self.list).iter() {
             current_pos.push((ships.pos_x, ships.pos_y))
         }
         current_pos
     }
 
+    //Grabs the positions of all rocks.
     fn current_rock_pos(&mut self) -> Vec<(i64, i64)> {
         let mut current_pos: Vec<(i64, i64)> = Vec::new();
-        for rock in self.rocks.iter() {
+        for rock in (&self.rocks).iter() {
             current_pos.push((rock.pos_x, rock.pos_y))
         }
         current_pos
     }
 
+    //Clears all enemies on screen
     fn restart(&mut self) {
         self.list.clear();
         self.rocks.clear();
@@ -484,6 +509,7 @@ impl Enemy {
 }
 
 fn main() {
+    //If there's an error with opengl, change the version.
     let opengl = OpenGL::V3_2;
 
     //get the window framework
@@ -506,6 +532,8 @@ fn main() {
         spawnrate: SPAWNRATE,
         score: 0,
     };
+
+    //Load all of the images and fonts from assets folder.
     let assets = find_folder::Search::ParentsThenKids(3, 3)
         .for_folder("assets").unwrap();
     let background = assets.join("background.png");
@@ -514,10 +542,12 @@ fn main() {
     let rock = assets.join("rock.png");
     let font = assets.join("FiraSans-Regular.ttf");
     //Create the image object and attach a square Rectangle object inside.
+    //Used for background.
     let image   = Image::new().rect(
         graphics::rectangle::square(0.0, 0.0, HEIGHT as f64));
         
-    //A texture to use with the image
+    //A texture to use with the image, using the paths
+    //created above from assets
     let background_texture = Texture::from_path(
         background, 
         &opengl_graphics::TextureSettings::new())
@@ -537,7 +567,9 @@ fn main() {
 
     let mut glyphs = GlyphCache::new(font,
                     (),
-                    opengl_graphics::TextureSettings::new()).unwrap();
+                    opengl_graphics::TextureSettings::new())
+        .unwrap();
+
     let mut events = Events::new(EventSettings::new()).ups(6);
     let mut game_over = false;
     let mut reset = false;
@@ -548,27 +580,52 @@ fn main() {
             game.gl.draw(r.viewport(), |c, gl| {
             //Clear the screen
                 clear([0.0, 0.0, 0.0, 1.0], gl);
-                //Draw the image with the texture
+                //Render the core portion
                 let draw_state = graphics::DrawState::new_alpha();
-                image.draw(&background_texture, &draw_state, c.transform, gl);
+                image.draw(&background_texture, 
+                           &draw_state, 
+                           c.transform, 
+                           gl);
+
                 let transform = c.transform.trans(1.0, (HEIGHT) as f64);
                 text::Text::new_color([1.0, 1.0, 1.0, 1.0], 32)
-                    .draw(&score, &mut glyphs, &c.draw_state, transform, gl).unwrap();
+                    .draw(&score, 
+                          &mut glyphs, 
+                          &c.draw_state, 
+                          transform, 
+                          gl)
+                    .unwrap();
             });
 
             game.render(&r, &ship_texture, &fighter_texture, &rock_texture);
 
             if game_over {
                 game.gl.draw(r.viewport(), |c, gl| {
-                    //Draw the image with the texture
-                    let transform = c.transform.trans((WIDTH/4 + 15) as f64, (HEIGHT/2 -20) as f64);
+                    //Position the text in the location.
+                    let transform = c.transform.trans(
+                        (WIDTH/4 + 15) as f64, 
+                        (HEIGHT/2 -20) as f64);
+
                     text::Text::new_color([1.0,1.0,1.0,1.0], 32)
                             .draw("GAME OVER",
-                                   &mut glyphs, &c.draw_state, transform, gl).unwrap();
-                    let transform = c.transform.trans((WIDTH/4 - 5) as f64, (HEIGHT/2 +10) as f64);
+                                &mut glyphs, 
+                                &c.draw_state, 
+                                transform, 
+                                gl)
+                            .unwrap();
+
+                    //Relocate where text is to be rendered
+                    let transform = c.transform.trans(
+                        (WIDTH/4 - 5) as f64, 
+                        (HEIGHT/2 +10) as f64);
+
                     text::Text::new_color([1.0,1.0,1.0,1.0], 24)
                             .draw("Press 'R' To Restart",
-                                   &mut glyphs, &c.draw_state, transform, gl).unwrap();
+                                   &mut glyphs, 
+                                   &c.draw_state, 
+                                   transform, 
+                                   gl)
+                            .unwrap();
                 });
             }
         }
@@ -584,15 +641,18 @@ fn main() {
         if let Some(key) = e.button_args() {
             if key.state == ButtonState::Press {
                 let result = game.pressed(&key.button, game_over);
-                if result.0 == true {
+                //If a user pushes r, reset the game
+                if result.0 {
                     reset = true;
                 }
-                if result.1 == true {
+                //If a user collides with a block, game over
+                if result.1 {
                     game_over = true;
                 }
             }
         }
 
+        //If a user decided to restart the game.
         if reset {
             game.restart();
             reset = false;
