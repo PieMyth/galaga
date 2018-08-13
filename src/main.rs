@@ -30,18 +30,23 @@ struct Game {
     enemies: Enemy,
     ticks: u64,
     spawnrate: u64,
+    score: u64,
 }
 
 impl Game {
     //Gets screen set and renders ship.
-    fn render(&mut self, arg: &RenderArgs, xwing: &Texture, fighter: &Texture) {
+    fn render(&mut self, arg: &RenderArgs, player: &Texture, fighter: &Texture, rock: &Texture) {
 
-        self.ship.render(&mut self.gl, arg, xwing);
-        self.enemies.render(&mut self.gl, arg, fighter);
+        self.ship.render(&mut self.gl, arg, player);
+        self.enemies.render(&mut self.gl, arg, fighter, rock);
+
+        let mut score = "Score: ".to_string();
+        score.push_str(&self.score.to_string());
+
     }
 
     //Update based on event args time
-    fn update(&mut self) {
+    fn update(&mut self) -> bool{
         let mut spawns = (self.ticks as f64 / self.spawnrate as f64).sqrt()/(SPAWNRATE*10) as f64;
         if spawns < 1.0 {
             spawns = 1.0;
@@ -52,10 +57,21 @@ impl Game {
             }
         }
         for _ in 0..spawns as u64{
-            self.enemies.spawn();
+            self.enemies.spawnship();
         }
         
-        
+        if self.ticks > 60 {
+            if self.ticks %3 == 0 && self.ticks > 240 {
+                self.enemies.spawnrock(self.ship.current_pos().0);
+            }
+            else {
+                if self.ticks % 7 == 0 {
+                    self.enemies.spawnrock(self.ship.current_pos().0);
+                }
+            }
+        }
+
+
         self.ticks += 1;
 
         self.ship.update(false);
@@ -63,17 +79,38 @@ impl Game {
             self.ship.current_pos(), 
             self.ship.get_shots(), false);
 
-        self.ship.collision(hits);
+        let result = self.ship.collision(hits);
+        self.score += result.1;
+
+        if result.0 == true {
+            return true;
+        }
+
+        false
     }
 
     //Update Ship's movement or shoot depending on input
-    fn pressed(&mut self, btn: &Button) {
+    fn pressed(&mut self, btn: &Button, game_over: bool) -> (bool, bool){
+        if btn == &Button::Keyboard(Key::R) {
+            return (true, false);
+        }
         self.ship.kmove(btn);
         let hits = self.enemies.update(
             self.ship.current_pos(), 
             self.ship.get_shots(), true);
 
-        self.ship.collision(hits);
+        let result = self.ship.collision(hits);
+        if !game_over {
+            self.score += result.1;
+        }
+        (false, result.0)
+    }
+
+    fn restart(&mut self) {
+        self.ship.restart();
+        self.enemies.restart();
+        self.ticks = 0;
+        self.score = 0;
     }
 }
 
@@ -85,6 +122,7 @@ struct Ship {
 
 struct Enemy {
     list: Vec<Ship>,
+    rocks: Vec<Ship>,
 }
 
 struct Bullet {
@@ -182,8 +220,9 @@ impl Ship {
         }
     }
 
-    fn collision(&mut self, hits: Vec<(i64,i64)>) {
+    fn collision(&mut self, hits: Vec<(i64,i64)>) -> (bool, u64){
         let mut index: usize = 0;
+        let mut score = 0;
         let mut to_remove: Vec<usize> = Vec::new();
         let mut matched:bool = false;
         for x in self.shots.iter_mut() {
@@ -191,6 +230,7 @@ impl Ship {
             for y in hits.iter() {
                 if x.0 == y.0 && x.1 == y.1 {
                     to_remove.push(index);
+                    score += 100;
                     matched = true;
                 }
             }
@@ -203,6 +243,26 @@ impl Ship {
         }
 
         self.remove_shots(to_remove);
+
+        matched = false;
+        let ship_pos = self.current_pos();
+        for x in hits.iter() {
+            if ship_pos.0 == x.0 && ship_pos.1 == x.1 {
+                matched = true;
+            }
+
+            if matched {
+                break
+            }
+        }
+
+        (matched, score)
+    }
+
+    fn restart(&mut self) {
+        self.shots.clear();
+        self.pos_x = 10;
+        self.pos_y = 26;
     }
 }
 
@@ -242,7 +302,7 @@ impl Bullet {
 impl Enemy {
 
     //renders the ship, also will render the shots when created.
-    fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs, texture: &Texture) {
+    fn render(&mut self, gl: &mut GlGraphics, args: &RenderArgs, shiptexture: &Texture, rocktexture: &Texture) {
         use graphics;
 
         for ships in self.list.iter_mut() {
@@ -255,21 +315,42 @@ impl Enemy {
             gl.draw(args.viewport(), |c,gl| {
                 //Draw the image with the texture
                 let draw_state = graphics::DrawState::new_alpha();
-                new_ship.draw(texture, &draw_state, c.transform, gl)
+                new_ship.draw(shiptexture, &draw_state, c.transform, gl)
             });
 
-       }
+        }
+
+       for rock in self.rocks.iter_mut() {
+            let new_rock   = Image::new().rect(
+                graphics::rectangle::square(
+                    (rock.pos_x*GRIDSIZE) as f64,
+                    (rock.pos_y*GRIDSIZE) as f64,
+                    GRIDSIZE as f64));
+            
+            gl.draw(args.viewport(), |c,gl| {
+                //Draw the image with the texture
+                let draw_state = graphics::DrawState::new_alpha();
+                new_rock.draw(rocktexture, &draw_state, c.transform, gl)
+            });
+
+        }
+
 
     }
 
-    fn spawn(&mut self) {
+    fn spawnship(&mut self) {
         let mut rng = rand::thread_rng();
         let pos_x: i64 = rng.gen_range(1, WIDTH/GRIDSIZE -1);
         let new_ship = Ship {pos_x, pos_y: -1, shots: Vec::new()};
         self.list.push(new_ship);
     }
 
-    fn check_collision(&mut self, y: (i64, i64)) -> bool {
+    fn spawnrock(&mut self, pos_x: i64) {
+        let new_ship = Ship {pos_x, pos_y: -1, shots: Vec::new()};
+        self.rocks.push(new_ship);
+    }
+
+    fn ship_collision(&mut self, y: (i64, i64)) -> bool {
         let mut hit: bool = false;
         let mut index = 0;
         for x in self.current_pos() {
@@ -284,6 +365,24 @@ impl Enemy {
             }
             else {
                 index += 1;
+            }
+
+            if hit {
+                break
+            }
+        } 
+
+        hit
+    }
+
+    fn rock_collision(&mut self, y: (i64, i64)) -> bool {
+        let mut hit: bool = false;
+        for x in self.rocks.iter_mut() {
+            let mut x = x.current_pos();
+            if x.0 == y.0{
+                if x.1 == y.1 || x.1 == y.1+1 {
+                    hit = true;
+                }
             }
 
             if hit {
@@ -309,14 +408,14 @@ impl Enemy {
                     prev = true;
                 }
             }
-            if !prev && self.check_collision(x) {
+            if !prev && (self.ship_collision(x) || self.rock_collision(x)) {
                 hits.push(x.clone());
                 prev_hits.push(x);
                 prev = false;
             }
         }
 
-        if self.check_collision(ship_pos) {
+        if self.ship_collision(ship_pos) || self.rock_collision(ship_pos){
             hits.push(ship_pos);
         }
 
@@ -324,14 +423,17 @@ impl Enemy {
             for x in self.list.iter_mut() {
                 x.pos_y += 1;
             }
+            for x in self.rocks.iter_mut() {
+                x.pos_y += 1;
+            }
         
-            if self.check_collision(ship_pos) {
+            if self.ship_collision(ship_pos) || self.rock_collision(ship_pos){
                 hits.push(ship_pos);
             }
         }
 
         let mut index = 0;
-        for x in self.current_pos().iter_mut() {
+        for x in self.current_pos() {
             //If enemy goes below
             if x.1 > (HEIGHT/GRIDSIZE -4) {
                 self.list.remove(index);
@@ -340,6 +442,17 @@ impl Enemy {
                 index += 1;
             }
         }
+        index = 0;
+        for x in self.current_rock_pos() {
+            //If enemy goes below
+            if x.1 > (HEIGHT/GRIDSIZE -4) {
+                self.rocks.remove(index);
+            }
+            else {
+                index += 1;
+            }
+        }
+
         hits
     }
     
@@ -351,6 +464,18 @@ impl Enemy {
         current_pos
     }
 
+    fn current_rock_pos(&mut self) -> Vec<(i64, i64)> {
+        let mut current_pos: Vec<(i64, i64)> = Vec::new();
+        for rock in self.rocks.iter() {
+            current_pos.push((rock.pos_x, rock.pos_y))
+        }
+        current_pos
+    }
+
+    fn restart(&mut self) {
+        self.list.clear();
+        self.rocks.clear();
+    }
 }
 
 fn main() {
@@ -360,25 +485,28 @@ fn main() {
     let mut window: GlutinWindow = WindowSettings::new(
         "galaga",
         [400,600],
-        ).opengl(opengl)
-            .exit_on_esc(true)
-            .build()
-            .unwrap();
+        )
+        //.opengl(opengl)
+        .exit_on_esc(true)
+        .build()
+        .unwrap();
 
 
     //Initialize the game
     let mut game = Game {
         gl: GlGraphics::new(opengl),
         ship: Ship{pos_x: 10, pos_y: 26, shots: Vec::new()},
-        enemies: Enemy{list: Vec::new()},
+        enemies: Enemy{list: Vec::new(), rocks: Vec::new()},
         ticks: 0,
         spawnrate: SPAWNRATE,
+        score: 0,
     };
         let assets = find_folder::Search::ParentsThenKids(3, 3)
             .for_folder("assets").unwrap();
         let background = assets.join("background.png");
         let ship = assets.join("ship.png");
         let fighter = assets.join("enemy.png");
+        let rock = assets.join("rock.png");
         //Create the image object and attach a square Rectangle object inside.
         let image   = Image::new().rect(graphics::rectangle::square(0.0, 0.0, HEIGHT as f64));
         //A texture to use with the image
@@ -394,7 +522,14 @@ fn main() {
             fighter, 
             &opengl_graphics::TextureSettings::new())
             .unwrap();
+        let rock_texture = Texture::from_path(
+            rock,
+            &opengl_graphics::TextureSettings::new())
+            .unwrap();
+
     let mut events = Events::new(EventSettings::new()).ups(6);
+    let mut game_over = false;
+    let mut reset = false;
     while let Some(e) = events.next(&mut window) {
         //Initial window render
         if let Some(r) = e.render_args() {
@@ -406,19 +541,33 @@ fn main() {
                 image.draw(&background_texture, &draw_state, c.transform, gl)
             });
 
-            game.render(&r, &ship_texture, &fighter_texture);
+            game.render(&r, &ship_texture, &fighter_texture, &rock_texture);
         }
 
         //Update the game data and render everything
-        if let Some(_u) = e.update_args() {
-            game.update();
+        if !game_over {
+            if let Some(_u) = e.update_args() {
+                game_over = game.update();
+            }
         }
 
         //Listen for some key presses
         if let Some(key) = e.button_args() {
             if key.state == ButtonState::Press {
-                game.pressed(&key.button);
+                let result = game.pressed(&key.button, game_over);
+                if result.0 == true {
+                    reset = true;
+                }
+                if result.1 == true {
+                    game_over = true;
+                }
             }
+        }
+
+        if reset {
+            game.restart();
+            reset = false;
+            game_over = false;
         }
     }
 }
