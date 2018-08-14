@@ -40,7 +40,7 @@ cargo run
 ```
 
 When running it should look something like this:
-(./game.png)
+![game example](./game.png)
 
 ## Built With
 
@@ -57,7 +57,7 @@ When running it should look something like this:
 
 ## License
 
-This project is licensed under the BSD 2-Clause "Simplified" License - see the [LICENSE.md](LICENSE.md) file for details
+This project is licensed under the BSD 2-Clause "Simplified" License - see the [LICENSE.md](https://github.com/PieMyth/galaga/blob/master/README.md) file for details
 
 ## Acknowledgments
 
