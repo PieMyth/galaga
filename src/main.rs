@@ -1,4 +1,8 @@
-// PieMyth @ github
+// Copyright © 2018 William Haugen - Piemyth
+// [This work is licensed under the "BSD 2-Clause License"]
+// Please see the file LICENSE in the source
+// distribution of this software for license terms.
+
 
 extern crate find_folder;
 extern crate glutin_window;
@@ -24,6 +28,8 @@ static POINTS: u64 = 25;
 //Starting out layout was used from the examples
 //in the Piston Library and this video
 //https://www.youtube.com/watch?v=HCwMb0KslX8
+//Glyphs were pulled from the piston examples on github:
+//https://github.com/PistonDevelopers/opengl_graphics/blob/master/examples/hello_world.rs
 struct Game {
     gl: GlGraphics,
     ship: Ship,
@@ -541,6 +547,7 @@ fn main() {
 
     let mut glyphs = GlyphCache::new(font, (), opengl_graphics::TextureSettings::new()).unwrap();
 
+    //ups is the number of times it will run per second.
     let mut events = Events::new(EventSettings::new()).ups(6);
     let mut game_over = false;
     let mut reset = false;
