@@ -40,13 +40,14 @@ struct Game {
 }
 
 impl Game {
-    //Gets screen set and renders ship.
+    //Gets screen and renders ship all the sprites on the screen.
     fn render(&mut self, arg: &RenderArgs, player: &Texture, fighter: &Texture, rock: &Texture) {
         self.ship.render(&mut self.gl, arg, player);
         self.enemies.render(&mut self.gl, arg, fighter, rock);
     }
 
     fn score(&mut self) -> String {
+        //Get the score to be rendered down in main.
         let mut score = "Score: ".to_string();
         score.push_str(&self.score.to_string());
 
@@ -55,6 +56,9 @@ impl Game {
 
     //Update based on event args time
     fn update(&mut self) -> bool {
+        //Spawning system for enemy ships.
+        //Will span more as time goes on to a limit of 5 ships per tick and 
+        //One astroid every 3 and 7 game ticks.
         let mut spawns =
             (self.ticks as f64 / self.spawnrate as f64).sqrt() / (SPAWNRATE * 10) as f64;
 
@@ -88,6 +92,7 @@ impl Game {
     }
 
     //Update Ship's movement or shoot depending on input
+    //Returns a tuple left value indicates a reset, right value indicates game over.
     fn pressed(&mut self, btn: &Button, game_over: bool) -> (bool, bool) {
         if btn == &Button::Keyboard(Key::R) {
             return (true, false);
@@ -103,6 +108,8 @@ impl Game {
         (false, result.0)
     }
 
+    //Restarts all sprites to default position or clear them
+    //Set all game values to 0.
     fn restart(&mut self) {
         self.ship.restart();
         self.enemies.restart();
@@ -180,6 +187,8 @@ impl Ship {
         }
     }
 
+    //Update with gametick. Moved bool is to indicate if the player moved,
+    //or it was wiht the regular update of a gametick.
     fn update(&mut self, moved: bool) {
         //Update aspects of the ship, mainly for the shots.
         let mut index: usize = 0;
@@ -200,16 +209,19 @@ impl Ship {
         self.remove_shots(to_remove);
     }
 
+    //Gets the shots for checking position and possibly
+    //removing them.
     fn get_shots(&mut self) -> &mut Vec<Bullet> {
         &mut self.shots
     }
 
+    //Give current posotion of ship.
     fn current_pos(&mut self) -> (i64, i64) {
         (self.pos_x, self.pos_y)
     }
 
     fn remove_shots(&mut self, index: Vec<usize>) {
-        //Removing bullets that were found as out of bounds.
+        //Removing bullets that were found as out of bounds or hit something.
         for x in index {
             if x < self.shots.len() {
                 self.shots.remove(x);
@@ -223,9 +235,13 @@ impl Ship {
         let mut to_remove: Vec<usize> = Vec::new();
         let mut matched: bool = false;
 
+        //Check collision of the shots
         for x in (&mut self.shots).iter_mut() {
             let x = x.get_pos();
             for y in (&hits).iter() {
+                //Check for coordinates to see if match.
+                //If there was a match, add points to score to be
+                //Returned back then displayed.
                 if x.0 == y.0 && x.1 == y.1 {
                     to_remove.push(index);
                     score += POINTS;
@@ -239,10 +255,13 @@ impl Ship {
             }
         }
 
+        //Remove all shots that have a collision
         self.remove_shots(to_remove);
 
+        //Reset matched for ship.
         matched = false;
         let ship_pos = self.current_pos();
+        //Check to see if player ship was hit or not.
         for x in hits {
             if ship_pos.0 == x.0 && ship_pos.1 == x.1 {
                 matched = true;
@@ -293,7 +312,7 @@ impl Bullet {
         self.pos_y -= 1;
     }
 
-    //Able to give its position away to be used to check collision
+    //Give shot's position in the form of a tuple.
     fn get_pos(&self) -> (i64, i64) {
         (self.pos_x, self.pos_y)
     }
@@ -310,6 +329,7 @@ impl Enemy {
     ) {
         use graphics;
 
+        //Render all enemy ships in positions
         for ships in (&mut self.list).iter_mut() {
             let new_ship = Image::new().rect(graphics::rectangle::square(
                 (ships.pos_x * GRIDSIZE) as f64,
@@ -324,6 +344,7 @@ impl Enemy {
             });
         }
 
+        //Render all rocks in their positions.
         for rock in (&mut self.rocks).iter_mut() {
             let new_rock = Image::new().rect(graphics::rectangle::square(
                 (rock.pos_x * GRIDSIZE) as f64,
@@ -367,22 +388,30 @@ impl Enemy {
         let mut hit: bool = false;
         let mut index = 0;
         for x in self.current_pos() {
+            //First checks if the x coordinate is the same.
+            //Then checks to see if either the y coordinates match
+            //or they are one apart.
             if x.0 == y.0 {
                 if x.1 == y.1 || x.1 == y.1 + 1 {
+                    //Remove if hit and set hit to true.
                     hit = true;
                     self.list.remove(index);
                 } else {
+                    //Increment if there wasn't a revmoval of list.
                     index += 1;
                 }
             } else {
+                //Another increment since didn't make it as far.
                 index += 1;
             }
 
+            //If hit, no need to continue,.
             if hit {
                 break;
             }
         }
 
+        //Return rresult if ship was hit or not.
         hit
     }
 
@@ -391,15 +420,21 @@ impl Enemy {
         let mut hit: bool = false;
         for x in (&mut self.rocks).iter_mut() {
             let mut x = x.current_pos();
+            //Needs to check if it is on position or below one.
+            //Can pass through if it doesn't check below one.
             if x.0 == y.0 && (x.1 == y.1 || x.1 == y.1 + 1) {
+                //Don't remove since rocks to get destroyed.
                 hit = true;
             }
 
+            //If there was a hit on that rock, exit out of loop
+            //No need to continue on.
             if hit {
                 break;
             }
         }
 
+        //Return result if rock was hit or not.
         hit
     }
 
@@ -414,6 +449,10 @@ impl Enemy {
         let mut prev_hits: Vec<(i64, i64)> = Vec::new();
         let mut prev: bool = false;
 
+        //Checks the positions of all the shots
+        //Removes a the ship if hit and adds to a hit list
+        //hit list will get passed back to player ship
+        //and have collisions checked for there.
         for x in shot_pos.iter_mut() {
             let x = x.get_pos();
             for y in (&mut prev_hits).iter_mut() {
@@ -421,6 +460,9 @@ impl Enemy {
                     prev = true;
                 }
             }
+
+            //If either ship or rock were hit, push the positions on the hit
+            //list for player ship to remove.
             if !prev && (self.ship_collision(x) || self.rock_collision(x)) {
                 hits.push(x);
                 prev_hits.push(x);
@@ -428,10 +470,12 @@ impl Enemy {
             }
         }
 
+        //Checks collision with player ship.
         if self.ship_collision(ship_pos) || self.rock_collision(ship_pos) {
             hits.push(ship_pos);
         }
 
+        //If the update wasn't for a player input, move the rocks and ships.
         if !movement {
             for x in (&mut self.list).iter_mut() {
                 x.pos_y += 1;
@@ -440,20 +484,24 @@ impl Enemy {
                 x.pos_y += 1;
             }
 
+            //Check collision against player ship again after the move.
             if self.ship_collision(ship_pos) || self.rock_collision(ship_pos) {
                 hits.push(ship_pos);
             }
         }
 
+        //Remove any enemies or rocks that have gone below where the player can go.
         let mut index = 0;
         for x in self.current_pos() {
             //If enemy goes below
             if x.1 > (HEIGHT / GRIDSIZE - 4) {
                 self.list.remove(index);
             } else {
+                //Only need to increment index if a ship wasn't removed.
                 index += 1;
             }
         }
+        //Reset index for use with rock positions.
         index = 0;
         for x in self.current_rock_pos() {
             //If enemy goes below
@@ -464,6 +512,7 @@ impl Enemy {
             }
         }
 
+        //Return the list of all hits made on rocks and enemy ships.
         hits
     }
 
@@ -485,7 +534,7 @@ impl Enemy {
         current_pos
     }
 
-    //Clears all enemies on screen
+    //Clears all enemies and rocks on screen
     fn restart(&mut self) {
         self.list.clear();
         self.rocks.clear();
@@ -493,7 +542,9 @@ impl Enemy {
 }
 
 fn main() {
-    //If there's an error with opengl, change the version.
+    //If there's an error with opengl, change the version
+    //and uncomment the .opengl() argument for the window
+    //below when window is created.
     let opengl = OpenGL::V3_2;
 
     //get the window framework
@@ -545,6 +596,7 @@ fn main() {
         Texture::from_path(fighter, &opengl_graphics::TextureSettings::new()).unwrap();
     let rock_texture = Texture::from_path(rock, &opengl_graphics::TextureSettings::new()).unwrap();
 
+    //Convert font into a glyphcache
     let mut glyphs = GlyphCache::new(font, (), opengl_graphics::TextureSettings::new()).unwrap();
 
     //ups is the number of times it will run per second.
@@ -558,10 +610,13 @@ fn main() {
             game.gl.draw(r.viewport(), |c, gl| {
                 //Clear the screen
                 clear([0.0, 0.0, 0.0, 1.0], gl);
-                //Render the core portion
                 let draw_state = graphics::DrawState::new_alpha();
+
+                //Render the background image
                 image.draw(&background_texture, &draw_state, c.transform, gl);
 
+
+                //Position and render the score on the screen
                 let transform = c.transform.trans(1.0, (HEIGHT) as f64);
                 text::Text::new_color([1.0, 1.0, 1.0, 1.0], 32)
                     .draw(&score, &mut glyphs, &c.draw_state, transform, gl)
@@ -598,6 +653,7 @@ fn main() {
         }
 
         //Update the game data and render everything
+        //if the game over conditions haven't occured.
         if !game_over {
             if let Some(_u) = e.update_args() {
                 game_over = game.update();
@@ -620,6 +676,7 @@ fn main() {
         }
 
         //If a user decided to restart the game.
+        //Call restart to reset everything about the agme.
         if reset {
             game.restart();
             reset = false;
