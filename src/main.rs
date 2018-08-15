@@ -3,7 +3,6 @@
 // Please see the file LICENSE in the source
 // distribution of this software for license terms.
 
-
 extern crate find_folder;
 extern crate glutin_window;
 extern crate graphics;
@@ -57,7 +56,7 @@ impl Game {
     //Update based on event args time
     fn update(&mut self) -> bool {
         //Spawning system for enemy ships.
-        //Will span more as time goes on to a limit of 5 ships per tick and 
+        //Will span more as time goes on to a limit of 5 ships per tick and
         //One astroid every 3 and 7 game ticks.
         let mut spawns =
             (self.ticks as f64 / self.spawnrate as f64).sqrt() / (SPAWNRATE * 10) as f64;
@@ -614,7 +613,6 @@ fn main() {
 
                 //Render the background image
                 image.draw(&background_texture, &draw_state, c.transform, gl);
-
 
                 //Position and render the score on the screen
                 let transform = c.transform.trans(1.0, (HEIGHT) as f64);
